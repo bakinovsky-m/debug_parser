@@ -5,6 +5,8 @@ use nom::{
     AsChar, IResult, Parser,
 };
 use std::fmt;
+use serde::Serialize;
+use serde::ser::{SerializeMap};
 
 pub mod evcxr;
 
@@ -18,6 +20,7 @@ trait Parse: Sized {
 }
 
 /// A parsed representation of debug output.
+#[derive(Serialize)]
 pub struct Value {
     pub name: Option<String>,
     pub kind: ValueKind,
@@ -116,6 +119,7 @@ impl Value {
 /// The different kinds of values.
 ///
 /// Destructure this to get at the value.
+#[derive(Serialize)]
 pub enum ValueKind {
     Set(Set),
     Map(Map),
@@ -151,6 +155,7 @@ impl ValueKind {
     }
 }
 
+#[derive(Serialize)]
 pub struct Set {
     pub values: Vec<Value>,
 }
@@ -182,11 +187,25 @@ impl fmt::Display for Set {
     }
 }
 
+// #[derive(Serialize)]
 pub struct Map {
     pub values: Vec<KeyValue>,
 }
 
+impl Serialize for Map {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        let mut map = serializer.serialize_map(Some(self.len()))?;
+        for KeyValue{key: k, value: v} in &self.values {
+            map.serialize_entry(k, v)?;
+        }
+        map.end()
+    }
+
+}
+
 impl Map {
+    fn len(&self) -> usize {self.values.len()}
+
     fn parse(input: &str) -> IResult<&str, Self> {
         let input = consume_ws(input);
         let (input, _) = tag("{")(input)?;
@@ -213,6 +232,7 @@ impl fmt::Display for Map {
     }
 }
 
+#[derive(Serialize)]
 pub struct List {
     pub values: Vec<Value>,
 }
@@ -244,6 +264,7 @@ impl fmt::Display for List {
     }
 }
 
+#[derive(Serialize)]
 pub struct Tuple {
     pub values: Vec<Value>,
 }
@@ -287,6 +308,7 @@ fn parse_comma_separated<T: Parse>(mut input: &str) -> Result<Vec<T>, nom::Err<E
     Ok(out)
 }
 
+#[derive(Serialize)]
 pub struct KeyValue {
     pub key: String,
     pub value: Value,
